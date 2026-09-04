@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#123b78">
+<title>โปรแกรมจัดตารางเวร v6 — ค.ศ.</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,"Noto Sans Thai",sans-serif;background:#f5f7fb;margin:0;color:#172033}
+header{background:#123b78;color:#fff;padding:18px 16px;position:sticky;top:0;z-index:5}
+header h1{margin:0 0 4px;font-size:25px}header small{opacity:.9}
+main{max-width:1400px;margin:auto;padding:12px}
+.card{background:#fff;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 2px 10px #0001}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+label{display:block;font-weight:bold}input,select,button{padding:10px;border:1px solid #ccd5e0;border-radius:9px;font:inherit}
+button{cursor:pointer;font-weight:bold;background:#fff}.primary{background:#2563eb;color:#fff}.danger{background:#fee2e2;color:#991b1b}
+.success{background:#dcfce7;color:#166534}.muted{color:#64748b}.small{font-size:13px}.member{display:grid;grid-template-columns:1fr 110px 58px;gap:8px;margin:7px 0}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);min-width:900px}.wrap{overflow:auto}.dow{background:#123b78;color:#fff;padding:8px;text-align:center;font-weight:bold;border:1px solid #fff}.sun{background:#c62828}
+.day{min-height:125px;background:#fff;border:1px solid #d7dee8;padding:5px}.weekend{background:#fbfbfd}.holiday{background:#fff0f0}.num{font-weight:bold;font-size:18px}
+.badge{display:block;margin:5px 0;padding:6px;border-radius:6px;text-align:center;font-weight:bold}.legend{display:flex;gap:7px;flex-wrap:wrap}.legend span{padding:6px 10px;border-radius:7px;font-weight:bold}
+table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd5e0;padding:8px;text-align:center}th{background:#123b78;color:#fff}.ok{color:#16803c;font-weight:bold}.bad{color:#b42318;font-weight:bold}
+.ocr-preview{max-width:100%;max-height:420px;display:block;margin-top:10px;border-radius:10px;border:1px solid #ddd}.ocrbox{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-top:10px}
+.progress{height:10px;background:#e2e8f0;border-radius:99px;overflow:hidden}.progress>div{height:100%;width:0;background:#2563eb;transition:width .2s}
+pre{white-space:pre-wrap;word-break:break-word;background:#111827;color:#e5e7eb;padding:10px;border-radius:8px;max-height:240px;overflow:auto}
+@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}.member{grid-template-columns:1fr 90px 55px}.day{min-height:110px}}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.member{grid-template-columns:1fr 85px 55px}}
+@media print{header,.settings,.no-print{display:none!important}.card{box-shadow:none}.cal{min-width:0}.day{min-height:110px}}
+</style>
+</head>
+<body>
+<header><h1>โปรแกรมจัดตารางเวร v6 — ค.ศ.</h1><small>แก้สมาชิก • วันหยุด • ห้ามขึ้นเวร • อ่านภาพตามช่องวันที่ • สร้างตาราง</small></header>
+<main>
+<div class="card settings">
+<h2>ตั้งค่า</h2>
+<div class="grid">
+<label>เดือน<select id="month"></select></label>
+<label>ปี ค.ศ.<input id="year" type="number" value="2026"></label>
+<label>เวรต่อเนื่องสูงสุด (ชั่วโมง)<input id="maxH" type="number" value="16" min="8" step="8"></label>
+<label>รูปแบบวันธรรมดา<select disabled><option>2 เวร: ดึก + บ่าย</option></select></label>
+</div>
+<p><b>ใช้ปี ค.ศ. เช่น 2026</b> — เสาร์–อาทิตย์และวันหยุดราชการ = 3 เวร (ดึก + เช้า + บ่าย) / จันทร์–ศุกร์ = 2 เวร (ดึก + บ่าย)</p>
+<button class="primary" onclick="generate()">สร้างตาราง</button>
+<button onclick="window.print()">พิมพ์ / PDF</button>
+<button onclick="saveData()">บันทึกข้อมูล</button>
+<button onclick="loadData()">เรียกข้อมูลที่บันทึก</button>
+</div>
+
+<div class="card settings">
+<h2>สมาชิกและจำนวนเวร</h2><div id="members"></div>
+<button onclick="addMember()">+ เพิ่มสมาชิก</button>
+</div>
+
+<div class="card settings">
+<h2>วันหยุดราชการ</h2>
+<input id="hd" type="date"><input id="hn" placeholder="ชื่อวันหยุด">
+<button onclick="addHoliday()">เพิ่ม</button><div id="holidays" style="margin-top:10px"></div>
+</div>
+
+<div class="card settings">
+<h2>สมาชิกที่ไม่สามารถอยู่เวรในวันนั้นได้</h2>
+<p>เลือกวันที่ แล้วติ๊กชื่อสมาชิกที่ <b>ห้ามจัดเวรในวันนั้น</b> โปรแกรมจะไม่เลือกสมาชิกเหล่านี้ในทุกเวรของวันดังกล่าว</p>
+<div class="grid"><label>วันที่ <input id="unDate" type="date" onchange="renderUnavailable()"></label></div>
+<div id="unavailableMembers" style="margin-top:10px"></div>
+<div id="unavailableList" style="margin-top:12px"></div>
+</div>
+
+<div class="card settings">
+<h2>เพิ่มภาพ (Add image) — v6 อ่านชื่อจาก “ช่องวันที่”</h2>
+<p><b>กติกา v6:</b> สมาชิกที่มีชื่ออยู่ <b>ภายในช่องวันที่ใดในภาพ = ห้ามอยู่เวรในวันนั้น</b> ระบบจะจับคู่ชื่อกับช่องวันที่จากตำแหน่งในตาราง</p>
+<p class="small muted">ไม่ใช้ U / G / P / B9 / US-BX / Stero / M ในการตัดสิน และยังคงฟังก์ชัน “สมาชิกที่ไม่สามารถอยู่เวรในวันนั้นได้” สำหรับติ๊กแก้ไขเองได้ตามเดิม</p>
+<div class="grid">
+<label>ภาพตารางเวร<input id="ocrFile" type="file" accept="image/*" onchange="previewOCR()"></label>
+<label>วันที่ของภาพ (ใช้เมื่อภาพไม่ใช่เดือนที่เลือก)<input id="ocrDate" type="date"></label>
+</div>
+<button class="primary" id="ocrBtn" onclick="runOCR()">อ่านภาพ</button>
+<button class="success" id="ocrApplyBtn" onclick="applyOCRConfirmed()" disabled>ยืนยันผลที่เลือก → เพิ่มเป็น “ห้ามอยู่เวร”</button>
+<button onclick="clearOCR()">ล้างผล OCR</button>
+<div id="ocrStatus" class="ocrbox muted">ยังไม่ได้อ่านภาพ</div>
+<div class="progress"><div id="ocrProgress"></div></div>
+<img id="ocrPreview" class="ocr-preview" hidden>
+<div id="ocrResult" class="ocrbox" hidden></div>
+</div>
+
+<div class="card"><h2>ตารางปฏิทิน</h2><div id="status"></div><div id="legend" class="legend"></div><div class="wrap"><div id="cal" class="cal"></div></div></div>
+<div class="card"><h2>สรุปจำนวนเวร</h2><div id="summary"></div></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const months=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const days=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+let people=[['พัชรีย์',8],['ชวลิต',8],['เนตรชนก',9],['อภิฤดี',9],['รังสรรค์',7],['กลศึก',7],['นภัสสร',10],['ณิชมน',8],['วิชญาดา',7]];
+let holidays={'2026-08-12':'วันหยุดราชการ'},ans=[],unavailable={};
+const colors=['#f7b6b2','#a9c9f5','#b9e6a3','#ffd08a','#c9b7f4','#8fe3e8','#f2a8d8','#f6e38a','#b8d9c2','#d6b5f0','#a8d8f0','#f5c2d9'];
+
+function key(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
+function holiday(y,m,d){return holidays[key(y,m,d)]}
+function slots(y,m,d){const w=new Date(y,m-1,d).getDay();return w===0||w===6||holiday(y,m,d)?['ดึก','เช้า','บ่าย']:['ดึก','บ่าย']}
+
+function renderPeople(){
+  members.innerHTML=people.map((p,i)=>`<div class="member">
+  <input value="${esc(p[0])}" oninput="people[${i}][0]=this.value">
+  <input type="number" min="0" value="${p[1]}" oninput="people[${i}][1]=+this.value">
+  <button class="danger" onclick="people.splice(${i},1);renderPeople();renderUnavailable()">ลบ</button></div>`).join('');
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function addMember(){people.push(['สมาชิกใหม่',0]);renderPeople();renderUnavailable()}
+function addHoliday(){if(hd.value){holidays[hd.value]=hn.value||'วันหยุดราชการ';hn.value='';renderHolidays();generate()}}
+function renderHolidays(){
+  holidaysEl=document.getElementById('holidays');
+  holidaysEl.innerHTML=Object.entries(holidays).sort().map(([k,v])=>`<div style="margin:5px 0">${k} — ${esc(v)} <button class="danger" onclick="delete holidays['${k}'];renderHolidays();generate()">ลบ</button></div>`).join('');
+}
+function renderUnavailable(){
+  const d=unDate.value;
+  if(!d){unavailableMembers.innerHTML='<span class="small">เลือกวันที่ก่อน</span>';return}
+  const blocked=new Set(unavailable[d]||[]);
+  unavailableMembers.innerHTML='<div class="legend">'+people.map((p,i)=>`<label style="display:inline-flex;align-items:center;gap:5px;background:${colors[i%colors.length]};padding:7px 10px;border-radius:7px;margin:4px;font-weight:bold"><input type="checkbox" ${blocked.has(p[0])?'checked':''} onchange="toggleUnavailable(${JSON.stringify(p[0])})">${esc(p[0])}</label>`).join('')+'</div>';
+}
+function toggleUnavailable(name){
+  const d=unDate.value;if(!d)return;
+  let arr=unavailable[d]||[];
+  arr=arr.includes(name)?arr.filter(x=>x!==name):arr.concat(name);
+  if(arr.length)unavailable[d]=arr;else delete unavailable[d];
+  renderUnavailable();renderUnavailableList();generate();
+}
+function renderUnavailableList(){
+  const entries=Object.entries(unavailable).filter(([k,v])=>v&&v.length).sort();
+  unavailableList.innerHTML=entries.length?'<b>รายการที่ตั้งไว้</b>'+entries.map(([k,v])=>`<div style="margin:6px 0;padding:7px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px"><b>${k}</b> — ${v.map(esc).join(', ')} <button class="danger" onclick="delete unavailable['${k}'];renderUnavailable();renderUnavailableList();generate()">ลบ</button></div>`).join(''):'<span class="small">ยังไม่ได้กำหนดสมาชิกที่ห้ามขึ้นเวร</span>';
+}
+
+function generate(){
+  const selectedMonth=Number(document.getElementById('month').value);
+  const selectedYear=Number(document.getElementById('year').value);
+  const names=people.map(p=>p[0]).filter(Boolean);
+  const target=Object.fromEntries(people.map(p=>[p[0],Number(p[1])||0]));
+  const used=Object.fromEntries(names.map(n=>[n,0]));
+  const slotsAll=[];
+  const total=new Date(selectedYear,selectedMonth,0).getDate();
+  for(let d=1;d<=total;d++)slots(selectedYear,selectedMonth,d).forEach(s=>slotsAll.push({d,s,k:key(selectedYear,selectedMonth,d)}));
+  const required=slotsAll.length, wanted=names.reduce((a,n)=>a+target[n],0);
+  if(wanted!==required){
+    status.innerHTML=`<span class="bad">จำนวนเวรรวมไม่ตรง: ต้องจัด ${required} เวร แต่กำหนดไว้ ${wanted} เวร</span>`;
+    ans=[];renderCal(selectedYear,selectedMonth);renderSummary();return;
+  }
+  const max=Math.max(1,Math.floor(Number(maxH.value)/8)||2);
+  const a={},nodes={n:0},limit=800000;
+  function conflict(n,i){
+    const x=slotsAll[i];
+    if((unavailable[x.k]||[]).includes(n))return true;
+    let c=0;
+    for(let j=i-1;j>=0&&c<max;j--){
+      const q=slotsAll[j];
+      if(a[q.k+'|'+q.s]===n)c++;else break;
+    }
+    return c>=max;
+  }
+  function bt(i){
+    if(++nodes.n>limit)return false;
+    if(i===slotsAll.length)return names.every(n=>used[n]===target[n]);
+    const x=slotsAll[i];
+    const cand=names.filter(n=>used[n]<target[n]&&!conflict(n,i))
+      .sort((p,q)=>(used[p]/Math.max(1,target[p]))-(used[q]/Math.max(1,target[q])));
+    for(const n of cand){
+      a[x.k+'|'+x.s]=n;used[n]++;
+      if(bt(i+1))return true;
+      used[n]--;delete a[x.k+'|'+x.s];
+    }
+    return false;
+  }
+  const ok=bt(0);
+  if(!ok){status.innerHTML='<span class="bad">ไม่สามารถจัดตารางตามเงื่อนไขและจำนวนเวรที่กำหนดได้ ลองเพิ่ม/ลดจำนวนเวรหรือผ่อนเงื่อนไข</span>';ans=[];renderCal(selectedYear,selectedMonth);renderSummary();return}
+  ans=slotsAll.map(x=>({...x,name:a[x.k+'|'+x.s]}));
+  status.innerHTML=`<span class="ok">สร้างตารางสำเร็จ (${nodes.n.toLocaleString()} ขั้นตอน)</span>`;
+  renderCal(selectedYear,selectedMonth);renderSummary();
+}
+
+function renderCal(y,m){
+  cal.innerHTML=days.map((d,i)=>`<div class="dow ${i===0?'sun':''}">${d}</div>`).join('');
+  const first=new Date(y,m-1,1).getDay(),total=new Date(y,m,0).getDate();
+  for(let i=0;i<first;i++)cal.innerHTML+='<div class="day"></div>';
+  const cmap=Object.fromEntries(people.map((p,i)=>[p[0],colors[i%colors.length]]));
+  legend.innerHTML=people.map(p=>`<span style="background:${cmap[p[0]]}">${esc(p[0])}</span>`).join('');
+  for(let d=1;d<=total;d++){
+    const dt=new Date(y,m-1,d),w=dt.getDay(),k=key(y,m,d),e=document.createElement('div');
+    e.className='day '+((w===0||w===6)?'weekend ':'')+(holiday(y,m,d)?'holiday':'');
+    const blocked=unavailable[k]||[];
+    e.innerHTML=`<div class="num">${d}${holiday(y,m,d)?' — '+esc(holiday(y,m,d)):''}</div>`;
+    if(blocked.length){
+      const box=document.createElement('div');
+      box.style.cssText='margin:4px 0;padding:4px 5px;border:1px solid #ef4444;background:#fff1f2;border-radius:6px;font-size:12px;color:#b42318';
+      box.innerHTML='<b>ห้ามอยู่เวร:</b> '+blocked.map(esc).join(', ');
+      e.appendChild(box);
+    }
+    ans.filter(x=>x.k===k).forEach(x=>{const b=document.createElement('span');b.className='badge';b.textContent=x.s+' — '+x.name;b.style.background=cmap[x.name];e.appendChild(b)});
+    cal.appendChild(e);
+  }
+}
+function renderSummary(){
+  const c=Object.fromEntries(people.map(p=>[p[0],0]));ans.forEach(x=>c[x.name]++);
+  summary.innerHTML='<table><tr><th>สมาชิก</th><th>กำหนด</th><th>จัดได้</th><th>ผล</th></tr>'+people.map(p=>`<tr><td>${esc(p[0])}</td><td>${p[1]}</td><td>${c[p[0]]||0}</td><td class="${(c[p[0]]||0)===Number(p[1])?'ok':'bad'}">${(c[p[0]]||0)===Number(p[1])?'ตรงตามกำหนด':'ไม่ตรง'}</td></tr>`).join('')+'</table>';
+}
+
+/* ---------- OCR v6.1: OCR เป็นเพียงตัวช่วย + ต้องยืนยันก่อนใช้ ---------- */
+let ocrPending={};
+function previewOCR(){
+  const f=ocrFile.files[0]; if(!f)return;
+  ocrPreview.src=URL.createObjectURL(f); ocrPreview.hidden=false;
+  ocrStatus.textContent='เลือกรูปแล้ว กด “อ่านภาพ” ระบบจะอ่านชื่อแยกตามช่องวันที่ และยังไม่เปลี่ยนตารางจนกว่าจะกดยืนยัน';
+  if(!ocrDate.value) ocrDate.value=unDate.value||key(Number(year.value),Number(month.value),1);
+}
+function setOCRProgress(p){ocrProgress.style.width=Math.max(0,Math.min(100,p))+'%'}
+function clearOCR(){ocrPending={};ocrStatus.textContent='ยังไม่ได้อ่านภาพ';ocrResult.hidden=true;ocrResult.innerHTML='';setOCRProgress(0);ocrApplyBtn.disabled=true}
+function normalizeText(s){return String(s||'').replace(/\r/g,'').replace(/[“”]/g,'"').replace(/\s+/g,' ').trim()}
+function compactText(s){return normalizeText(s).replace(/[\s|·•,.;:()\[\]{}]/g,'').toLowerCase()}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function makeOCRCanvas(file){
+  const img=new Image(),url=URL.createObjectURL(file);
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url});
+  const maxW=3000,scale=Math.min(3.2,Math.max(2, maxW/img.naturalWidth));
+  const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*scale);c.height=Math.round(img.naturalHeight*scale);
+  const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,c.width,c.height);
+  const d=ctx.getImageData(0,0,c.width,c.height),a=d.data;
+  for(let i=0;i<a.length;i+=4){const g=a[i]*.299+a[i+1]*.587+a[i+2]*.114;const v=Math.max(0,Math.min(255,(g-128)*1.55+128));a[i]=a[i+1]=a[i+2]=v}
+  ctx.putImageData(d,0,0);URL.revokeObjectURL(url);return c;
+}
+function center(w){return{x:(w.bbox.x0+w.bbox.x1)/2,y:(w.bbox.y0+w.bbox.y1)/2}}
+function cleanDayText(t){return normalizeText(t).replace(/[OoIl|l]/g,'1').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,'')}
+function detectDateCandidates(words){
+  const maxDay=new Date(Number(year.value),Number(month.value),0).getDate();
+  return words.filter(w=>w.text&&w.bbox&&Number(w.confidence)>=35).map(w=>{const t=cleanDayText(w.text);if(!t)return null;const n=Number(t);if(n<1||n>maxDay)return null;const c=center(w);return{day:n,x:c.x,y:c.y,w,confidence:Number(w.confidence)||0}}).filter(Boolean);
+}
+function cluster(vals,tol){
+  const a=[...vals].sort((x,y)=>x-y),groups=[];
+  for(const v of a){const g=groups[groups.length-1];if(!g||Math.abs(v-g.mean)>tol)groups.push({values:[v],mean:v});else{g.values.push(v);g.mean=g.values.reduce((x,y)=>x+y,0)/g.values.length}}
+  return groups;
+}
+function inferGrid(ds){
+  if(ds.length<8)return null;
+  const h=Math.max(12,Math.min(...ds.map(d=>Math.max(10,d.w.bbox.y1-d.w.bbox.y0))));
+  const xg=cluster(ds.map(d=>d.x),Math.max(55,h*3.5));
+  const yg=cluster(ds.map(d=>d.y),Math.max(45,h*2.8));
+  xg.sort((a,b)=>a.mean-b.mean);yg.sort((a,b)=>a.mean-b.mean);
+  // ใช้ตำแหน่งของวันที่จริง ไม่บังคับว่าต้องพบครบทุกคอลัมน์/ทุกแถว
+  if(xg.length<4||yg.length<3)return null;
+  return {cols:xg.slice(0,7),rows:yg.slice(0,6)};
+}
+function expectedCell(day,grid){
+  const first=new Date(Number(year.value),Number(month.value)-1,1).getDay(),idx=first+day-1;
+  return {row:Math.floor(idx/7),col:idx%7};
+}
+function buildCellGeometry(ds,grid,canvas){
+  const dates={};
+  for(const d of ds){
+    const e=expectedCell(d.day,grid); const col=grid.cols[e.col],row=grid.rows[e.row];
+    if(!col||!row)continue;
+    const dist=Math.hypot(d.x-col.mean,d.y-row.mean);
+    if(dist<Math.max(canvas.width,canvas.height)*.18 && (!dates[d.day]||dist<dates[d.day].dist)) dates[d.day]={day:d.day,x:d.x,y:d.y,row:e.row,col:e.col,dist};
+  }
+  const xs=grid.cols.map(g=>g.mean),ys=grid.rows.map(g=>g.mean);
+  const xe=[];for(let i=0;i<xs.length-1;i++)xe.push((xs[i]+xs[i+1])/2);
+  const ye=[];for(let i=0;i<ys.length-1;i++)ye.push((ys[i]+ys[i+1])/2);
+  return {dates,cols:grid.cols,rows:grid.rows,xe,ye,width:canvas.width,height:canvas.height};
+}
+function cellForPoint(x,y,geo){
+  let col=0;while(col<geo.xe.length&&x>geo.xe[col])col++;
+  let row=0;while(row<geo.ye.length&&y>geo.ye[row])row++;
+  const d=Object.values(geo.dates).find(q=>q.col===col&&q.row===row);
+  return d?{day:d.day,row,col}:null;
+}
+function memberNameHits(words){
+  const ws=words.filter(w=>w.text&&w.bbox&&Number(w.confidence)>=20).map(w=>({...w,c:center(w),t:normalizeText(w.text),k:compactText(w.text)}));
+  const hits=[];
+  for(const person of people){
+    const name=String(person[0]||'').trim(),nk=compactText(name);if(!nk)continue;
+    // 1) OCR อ่านชื่อเป็นคำเดียว
+    for(const w of ws){
+      if(w.k===nk || (w.k.length>=4&&(w.k.includes(nk)||nk.includes(w.k)))) hits.push({name,words:[w],confidence:w.confidence,x:w.c.x,y:w.c.y});
+    }
+    // 2) OCR แยกชื่อเป็นหลายคำ: ตรวจเฉพาะกลุ่มคำที่อยู่ติดกันในบรรทัดเดียวกัน
+    const lines=[];
+    for(const w of ws){let line=lines.find(l=>Math.abs(l.y-w.c.y)<=Math.max(14,(w.bbox.y1-w.bbox.y0)*.8));if(!line){line={y:w.c.y,words:[]};lines.push(line)}line.words.push(w)}
+    for(const line of lines){
+      line.words.sort((a,b)=>a.c.x-b.c.x);
+      for(let i=0;i<line.words.length;i++){
+        let joined='';const used=[];
+        for(let j=i;j<Math.min(line.words.length,i+5);j++){
+          if(j>i && line.words[j].c.x-line.words[j-1].c.x>Math.max(80,(line.words[j].bbox.x1-line.words[j].bbox.x0)*4))break;
+          joined+=line.words[j].k;used.push(line.words[j]);
+          if(joined===nk || (joined.length>=nk.length && joined.includes(nk))){
+            const x=used.reduce((a,w)=>a+w.c.x,0)/used.length,y=used.reduce((a,w)=>a+w.c.y,0)/used.length;
+            hits.push({name,words:used,confidence:used.reduce((a,w)=>a+w.confidence,0)/used.length,x,y});break;
+          }
+        }
+      }
+    }
+  }
+  const out=[],seen=new Set();
+  for(const h of hits){const key=h.name+'|'+Math.round(h.x/16)+'|'+Math.round(h.y/16);if(!seen.has(key)){seen.add(key);out.push(h)}}
+  return out;
+}
+function assignHits(hits,geo){
+  const out=[];
+  for(const h of hits){let cell=cellForPoint(h.x,h.y,geo);
+    if(!cell){let best=null,score=Infinity;for(const d of Object.values(geo.dates)){const dx=Math.abs(h.x-d.x),dy=h.y-d.y;if(dy>=-10){const s=dx*2+dy;if(s<score){score=s;best=d}}}if(best&&score<Math.max(geo.width,geo.height)*.45)cell={day:best.day,row:best.row,col:best.col}}
+    if(cell)out.push({...h,cell});
+  }
+  return out;
+}
+function renderOCRReview(rows){
+  ocrPending={};
+  const byDay={};
+  rows.forEach(r=>{(byDay[r.cell.day]??=[]).push(r)});
+  const maxDay=new Date(Number(year.value),Number(month.value),0).getDate();
+  let html='<div style="padding:8px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;margin-bottom:10px"><b>สำคัญ:</b> OCR ไม่สามารถรับประกัน 100% ได้ จึง <b>ยังไม่เอาผลไปจัดเวร</b> ให้ตรวจชื่อในแต่ละวันก่อน แล้วกด “ยืนยันผลที่เลือก”</div>';
+  html+='<div style="overflow:auto"><table><tr><th>วันที่</th><th>ชื่อที่ OCR พบ / ให้แก้ไข</th><th>สถานะ</th></tr>';
+  for(let d=1;d<=maxDay;d++){
+    const rs=byDay[d]||[]; const found=new Set(rs.map(r=>r.name));
+    const names=people.map(p=>p[0]).filter(Boolean);
+    ocrPending[d]=new Set(found);
+    html+=`<tr><td><b>${d}</b></td><td style="text-align:left">${names.map(n=>`<label style="display:inline-flex;align-items:center;gap:5px;margin:3px 6px 3px 0;padding:5px 7px;background:#f8fafc;border:1px solid #dbe3ee;border-radius:6px"><input type="checkbox" data-ocr-day="${d}" data-ocr-name="${esc(n)}" ${found.has(n)?'checked':''} onchange="toggleOCRPending(${d},this)">${esc(n)}</label>`).join('')}</td><td id="ocrState${d}" class="${found.size?'bad':'muted'}">${found.size?'พบ '+[...found].join(', '):'ไม่พบชื่อ'}</td></tr>`;
+  }
+  html+='</table></div>';
+  return html;
+}
+function toggleOCRPending(day,cb){
+  const name=cb.dataset.ocrName;(ocrPending[day]??=new Set());if(cb.checked)ocrPending[day].add(name);else ocrPending[day].delete(name);
+  const el=document.getElementById('ocrState'+day);if(el){const a=[...ocrPending[day]];el.className=a.length?'bad':'muted';el.textContent=a.length?'เลือก '+a.join(', '):'ไม่เลือกชื่อ'}
+  ocrApplyBtn.disabled=false;
+}
+function applyOCRConfirmed(){
+  let count=0;
+  for(const [day,set] of Object.entries(ocrPending)){const d=Number(day);if(!set.size)continue;const k=key(Number(year.value),Number(month.value),d);unavailable[k]=[...new Set([...(unavailable[k]||[]),...set])];count+=set.size;}
+  renderUnavailable();renderUnavailableList();generate();
+  ocrStatus.innerHTML=`<span class="ok">ยืนยันแล้ว ${count} รายการ — ถูกเพิ่มใน “สมาชิกที่ไม่สามารถอยู่เวรในวันนั้นได้” และตารางจะไม่จัดเวรให้สมาชิกเหล่านี้</span>`;
+  ocrApplyBtn.disabled=true;
+}
+async function runOCR(){
+  const file=ocrFile.files[0];if(!file){ocrStatus.innerHTML='<span class="bad">กรุณาเลือกรูปก่อน</span>';return}
+  ocrBtn.disabled=true;ocrApplyBtn.disabled=true;setOCRProgress(1);
+  try{
+    if(!window.Tesseract)throw new Error('โหลด OCR engine ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่');
+    const canvas=await makeOCRCanvas(file);ocrStatus.textContent='กำลังอ่านภาพ (1/2)...';setOCRProgress(8);
+    const worker=await Tesseract.createWorker('tha+eng',1,{logger:m=>{if(typeof m.progress==='number')setOCRProgress(8+Math.round(m.progress*55));if(m.status)ocrStatus.textContent='OCR: '+m.status}});
+    const result=await worker.recognize(canvas);await worker.terminate();
+    const words=(result?.data?.words||[]).filter(w=>w.text&&w.bbox);
+    const dates=detectDateCandidates(words),grid=inferGrid(dates);
+    if(!grid)throw new Error('จับโครงสร้างปฏิทินไม่ได้ — ควรใช้ภาพที่เห็นตารางครบ 7 คอลัมน์และถ่ายตรง');
+    const geo=buildCellGeometry(dates,grid,canvas);ocrStatus.textContent='กำลังจับคู่ชื่อกับช่องวันที่ (2/2)...';setOCRProgress(72);
+    const hits=memberNameHits(words),rows=assignHits(hits,geo);
+    ocrResult.hidden=false;ocrResult.innerHTML=renderOCRReview(rows);
+    const found=[...new Set(rows.map(r=>r.name+'|'+r.cell.day))].length;
+    ocrStatus.innerHTML=`<span class="ok">อ่านภาพเสร็จ — พบผู้สมัคร ${found} รายการ</span> <span class="muted">แต่ยังไม่ได้นำไปจัดเวร</span>`;
+    ocrApplyBtn.disabled=false;setOCRProgress(100);
+  }catch(err){setOCRProgress(0);ocrStatus.innerHTML='<span class="bad">อ่าน/วิเคราะห์ภาพไม่สำเร็จ: '+esc(err?.message||String(err))+'</span>';ocrResult.hidden=false;ocrResult.innerHTML='<b>วิธีให้ระบบอ่านได้ดีขึ้น:</b> ใช้ภาพต้นฉบับที่คมชัด เห็นตารางครบ 7 คอลัมน์ทุกแถว ไม่เอียง และชื่อสมาชิกต้องไม่ถูกตัดขอบช่อง';}
+  finally{ocrBtn.disabled=false}
+}
+
+/* ---------- ค.ศ. compatibility ---------- */
+function normalizeLoadedYear(y){
+  const n=Number(y)||2026;
+  return n>2400 ? n-543 : n;
+}
+function normalizeDateKey(k){
+  const m=String(k||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m)return k;
+  const y=Number(m[1]);
+  return `${y>2400?y-543:y}-${m[2]}-${m[3]}`;
+}
+function normalizeUnavailableDates(obj){
+  const out={};
+  Object.entries(obj||{}).forEach(([k,v])=>{out[normalizeDateKey(k)]=Array.isArray(v)?v:[]});
+  return out;
+}
+function normalizeHolidayDates(obj){
+  const out={};
+  Object.entries(obj||{}).forEach(([k,v])=>{out[normalizeDateKey(k)]=v});
+  return out;
+}
+
+/* ---------- Save/Load ---------- */
+function saveData(){
+  const data={people,holidays,unavailable,month:month.value,year:year.value,maxH:maxH.value};
+  localStorage.setItem('dutySchedulerV4',JSON.stringify(data));
+  status.innerHTML='<span class="ok">บันทึกข้อมูลไว้ในเครื่องนี้แล้ว</span>';
+}
+function loadData(){
+  try{
+    const d=JSON.parse(localStorage.getItem('dutySchedulerV4')||'null');
+    if(!d){status.innerHTML='<span class="bad">ยังไม่มีข้อมูลที่บันทึกไว้</span>';return}
+    people=d.people||people;holidays=normalizeHolidayDates(d.holidays||{});unavailable=normalizeUnavailableDates(d.unavailable||{});
+    month.value=d.month||8;year.value=normalizeLoadedYear(d.year||2026);maxH.value=d.maxH||16;
+    renderPeople();renderHolidays();renderUnavailable();renderUnavailableList();generate();
+    status.innerHTML='<span class="ok">เรียกข้อมูลที่บันทึกแล้ว</span>';
+  }catch(e){status.innerHTML='<span class="bad">โหลดข้อมูลไม่สำเร็จ</span>'}
+}
+
+months.forEach((x,i)=>month.innerHTML+=`<option value="${i+1}" ${i===7?'selected':''}>${x}</option>`);
+unDate.value='2026-08-01';ocrDate.value='2026-08-01';
+renderPeople();renderHolidays();renderUnavailable();renderUnavailableList();generate();
+</script>
+</body>
+</html>
